@@ -1,0 +1,22 @@
+{
+  "name": "tellorlegacy",
+  "version": "1.0.0",
+  "description": "Smart Contracts for the past versions of Tellor",
+  "main": "truffle-config.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tellor-io/TellorLegacy.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tellor-io/TellorLegacy/issues"
+  },
+  "homepage": "https://github.com/tellor-io/TellorLegacy#readme"
+}
