@@ -1,15 +1,15 @@
 {
   "contractName": "Old2TellorStorage",
   "abi": [],
-  "metadata": "{\"compiler\":{\"version\":\"0.5.16+commit.9c3226ce\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"details\":\"Contains all the variables/structs used by Tellor\",\"methods\":{},\"title\":\"Tellor Oracle Storage Library\"},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"/home/jgcarv/Dev/Tellor/TellorLegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol\":\"Old2TellorStorage\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"/home/jgcarv/Dev/Tellor/TellorLegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol\":{\"keccak256\":\"0x7d36645848c33941bb50bda50afb592f0219e3a1acb7577e4ff19e0c1ea1e7fe\",\"urls\":[\"bzz-raw://e11112f5b78b1a388bcc2a8ff6982bed1fc679a50b335a3fbbb6227ecbd6783c\",\"dweb:/ipfs/QmRo2TUbDhQnq7a9Z5t26K7f2yeLYA5WrazEhP6ehgyXZa\"]}},\"version\":1}",
-  "bytecode": "0x60556023600b82828239805160001a607314601657fe5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600080fdfea265627a7a72315820c513d1f35f5396be63ad1d95233ac324df37661cd455e8591a01d8412f12bcd864736f6c63430005100032",
-  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600080fdfea265627a7a72315820c513d1f35f5396be63ad1d95233ac324df37661cd455e8591a01d8412f12bcd864736f6c63430005100032",
-  "sourceMap": "132:6855:20:-;;:2:-1;166:7;155:9;146:7;137:37;255:7;249:14;246:1;241:23;235:4;232:33;222:2;;269:9;222:2;293:9;290:1;283:20;323:4;314:7;306:22;347:7;338;331:24",
-  "deployedSourceMap": "132:6855:20:-;;;;;;;;",
-  "source": "pragma solidity ^0.5.0;\n\n/**\n * @title Tellor Oracle Storage Library\n * @dev Contains all the variables/structs used by Tellor\n */\n\nlibrary Old2TellorStorage {\n    //Internal struct for use in proof-of-work submission\n    struct Details {\n        uint256 value;\n        address miner;\n    }\n\n    struct Dispute {\n        bytes32 hash; //unique hash of dispute: keccak256(_miner,_requestId,_timestamp)\n        int256 tally; //current tally of votes for - against measure\n        bool executed; //is the dispute settled\n        bool disputeVotePassed; //did the vote pass?\n        bool isPropFork; //true for fork proposal NEW\n        address reportedMiner; //miner who alledgedly submitted the 'bad value' will get disputeFee if dispute vote fails\n        address reportingParty; //miner reporting the 'bad value'-pay disputeFee will get reportedMiner's stake if dispute vote passes\n        address proposedForkAddress; //new fork address (if fork proposal)\n        mapping(bytes32 => uint256) disputeUintVars;\n        //Each of the variables below is saved in the mapping disputeUintVars for each disputeID\n        //e.g. TellorStorageStruct.DisputeById[disputeID].disputeUintVars[keccak256(\"requestId\")]\n        //These are the variables saved in this mapping:\n        // uint keccak256(\"requestId\");//apiID of disputed value\n        // uint keccak256(\"timestamp\");//timestamp of distputed value\n        // uint keccak256(\"value\"); //the value being disputed\n        // uint keccak256(\"minExecutionDate\");//7 days from when dispute initialized\n        // uint keccak256(\"numberOfVotes\");//the number of parties who have voted on the measure\n        // uint keccak256(\"blockNumber\");// the blocknumber for which votes will be calculated from\n        // uint keccak256(\"minerSlot\"); //index in dispute array\n        // uint keccak256(\"fee\"); //fee paid corresponding to dispute\n        mapping(address => bool) voted; //mapping of address to whether or not they voted\n    }\n\n    struct StakeInfo {\n        uint256 currentStatus; //0-not Staked, 1=Staked, 2=LockedForWithdraw 3= OnDispute\n        uint256 startDate; //stake start date\n    }\n\n    //Internal struct to allow balances to be queried by blocknumber for voting purposes\n    struct Checkpoint {\n        uint128 fromBlock; // fromBlock is the block number that the value was generated from\n        uint128 value; // value is the amount of tokens at a specific block number\n    }\n\n    struct Request {\n        string queryString; //id to string api\n        string dataSymbol; //short name for api request\n        bytes32 queryHash; //hash of api string and granularity e.g. keccak256(abi.encodePacked(_sapi,_granularity))\n        uint256[] requestTimestamps; //array of all newValueTimestamps requested\n        mapping(bytes32 => uint256) apiUintVars;\n        //Each of the variables below is saved in the mapping apiUintVars for each api request\n        //e.g. requestDetails[_requestId].apiUintVars[keccak256(\"totalTip\")]\n        //These are the variables saved in this mapping:\n        // uint keccak256(\"granularity\"); //multiplier for miners\n        // uint keccak256(\"requestQPosition\"); //index in requestQ\n        // uint keccak256(\"totalTip\");//bonus portion of payout\n        mapping(uint256 => uint256) minedBlockNum; //[apiId][minedTimestamp]=>block.number\n        //This the time series of finalValues stored by the contract where uint UNIX timestamp is mapped to value\n        mapping(uint256 => uint256) finalValues;\n        mapping(uint256 => bool) inDispute; //checks if API id is in dispute or finalized.\n        mapping(uint256 => address[5]) minersByValue;\n        mapping(uint256 => uint256[5]) valuesByTimestamp;\n    }\n\n    struct TellorStorageStruct {\n        bytes32 currentChallenge; //current challenge to be solved\n        uint256[51] requestQ; //uint50 array of the top50 requests by payment amount\n        uint256[] newValueTimestamps; //array of all timestamps requested\n        Details[5] currentMiners; //This struct is for organizing the five mined values to find the median\n        mapping(bytes32 => address) addressVars;\n        //Address fields in the Tellor contract are saved the addressVars mapping\n        //e.g. addressVars[keccak256(\"tellorContract\")] = address\n        //These are the variables saved in this mapping:\n        // address keccak256(\"tellorContract\");//Tellor address\n        // address  keccak256(\"_owner\");//Tellor Owner address\n        // address  keccak256(\"_deity\");//Tellor Owner that can do things at will\n        mapping(bytes32 => uint256) uintVars;\n        //uint fields in the Tellor contract are saved the uintVars mapping\n        //e.g. uintVars[keccak256(\"decimals\")] = uint\n        //These are the variables saved in this mapping:\n        // keccak256(\"decimals\");    //18 decimal standard ERC20\n        // keccak256(\"disputeFee\");//cost to dispute a mined value\n        // keccak256(\"disputeCount\");//totalHistoricalDisputes\n        // keccak256(\"total_supply\"); //total_supply of the token in circulation\n        // keccak256(\"stakeAmount\");//stakeAmount for miners (we can cut gas if we just hardcode it in...or should it be variable?)\n        // keccak256(\"stakerCount\"); //number of parties currently staked\n        // keccak256(\"timeOfLastNewValue\"); // time of last challenge solved\n        // keccak256(\"difficulty\"); // Difficulty of current block\n        // keccak256(\"currentTotalTips\"); //value of highest api/timestamp PayoutPool\n        // keccak256(\"currentRequestId\"); //API being mined--updates with the ApiOnQ Id\n        // keccak256(\"requestCount\"); // total number of requests through the system\n        // keccak256(\"slotProgress\");//Number of miners who have mined this value so far\n        // keccak256(\"miningReward\");//Mining Reward in PoWo tokens given to all miners per value\n        // keccak256(\"timeTarget\"); //The time between blocks (mined Oracle values)\n        //This is a boolean that tells you if a given challenge has been completed by a given miner\n        mapping(bytes32 => mapping(address => bool)) minersByChallenge;\n        mapping(uint256 => uint256) requestIdByTimestamp; //minedTimestamp to apiId\n        mapping(uint256 => uint256) requestIdByRequestQIndex; //link from payoutPoolIndex (position in payout pool array) to apiId\n        mapping(uint256 => Dispute) disputesById; //disputeId=> Dispute details\n        mapping(address => Checkpoint[]) balances; //balances of a party given blocks\n        mapping(address => mapping(address => uint256)) allowed; //allowance for a given party and approver\n        mapping(address => StakeInfo) stakerDetails; //mapping from a persons address to their staking info\n        mapping(uint256 => Request) requestDetails; //mapping of apiID to details\n        mapping(bytes32 => uint256) requestIdByQueryHash; // api bytes32 gets an id = to count of requests array\n        mapping(bytes32 => uint256) disputeIdByDisputeHash; //maps a hash to an ID for each dispute\n    }\n}\n",
-  "sourcePath": "/home/jgcarv/Dev/Tellor/TellorLegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol",
+  "metadata": "{\"compiler\":{\"version\":\"0.5.16+commit.9c3226ce\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"details\":\"Contains all the variables/structs used by Tellor\",\"methods\":{},\"title\":\"Tellor Oracle Storage Library\"},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"/C/company/code/tellorlegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol\":\"Old2TellorStorage\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"/C/company/code/tellorlegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol\":{\"keccak256\":\"0xc8cdaa3ad2c6b9ff1d7da10b92294ddbf7ae43a7ff31a444ac1a2ad034a27346\",\"urls\":[\"bzz-raw://676bb6e03d356b6603ceb733fa3a5f0cbd752eb12a9f8b59325d2b2f606d55e4\",\"dweb:/ipfs/QmSrZoFzWVxq7V9JK7j785xMDmVPQKatPiRj3xq4MpKx3h\"]}},\"version\":1}",
+  "bytecode": "0x60556023600b82828239805160001a607314601657fe5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600080fdfea265627a7a7231582097fb6b93ce8cb862b477bdfb4a94f805a07acf95c53ba5411ab2376535f5c66764736f6c63430005100032",
+  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600080fdfea265627a7a7231582097fb6b93ce8cb862b477bdfb4a94f805a07acf95c53ba5411ab2376535f5c66764736f6c63430005100032",
+  "sourceMap": "139:6959:20:-;;132:2:-1;166:7;155:9;146:7;137:37;255:7;249:14;246:1;241:23;235:4;232:33;222:2;;269:9;222:2;293:9;290:1;283:20;323:4;314:7;306:22;347:7;338;331:24",
+  "deployedSourceMap": "139:6959:20:-;;;;;;;;",
+  "source": "pragma solidity ^0.5.0;\r\n\r\n/**\r\n * @title Tellor Oracle Storage Library\r\n * @dev Contains all the variables/structs used by Tellor\r\n */\r\n\r\nlibrary Old2TellorStorage {\r\n    //Internal struct for use in proof-of-work submission\r\n    struct Details {\r\n        uint256 value;\r\n        address miner;\r\n    }\r\n\r\n    struct Dispute {\r\n        bytes32 hash; //unique hash of dispute: keccak256(_miner,_requestId,_timestamp)\r\n        int256 tally; //current tally of votes for - against measure\r\n        bool executed; //is the dispute settled\r\n        bool disputeVotePassed; //did the vote pass?\r\n        bool isPropFork; //true for fork proposal NEW\r\n        address reportedMiner; //miner who alledgedly submitted the 'bad value' will get disputeFee if dispute vote fails\r\n        address reportingParty; //miner reporting the 'bad value'-pay disputeFee will get reportedMiner's stake if dispute vote passes\r\n        address proposedForkAddress; //new fork address (if fork proposal)\r\n        mapping(bytes32 => uint256) disputeUintVars;\r\n        //Each of the variables below is saved in the mapping disputeUintVars for each disputeID\r\n        //e.g. TellorStorageStruct.DisputeById[disputeID].disputeUintVars[keccak256(\"requestId\")]\r\n        //These are the variables saved in this mapping:\r\n        // uint keccak256(\"requestId\");//apiID of disputed value\r\n        // uint keccak256(\"timestamp\");//timestamp of distputed value\r\n        // uint keccak256(\"value\"); //the value being disputed\r\n        // uint keccak256(\"minExecutionDate\");//7 days from when dispute initialized\r\n        // uint keccak256(\"numberOfVotes\");//the number of parties who have voted on the measure\r\n        // uint keccak256(\"blockNumber\");// the blocknumber for which votes will be calculated from\r\n        // uint keccak256(\"minerSlot\"); //index in dispute array\r\n        // uint keccak256(\"fee\"); //fee paid corresponding to dispute\r\n        mapping(address => bool) voted; //mapping of address to whether or not they voted\r\n    }\r\n\r\n    struct StakeInfo {\r\n        uint256 currentStatus; //0-not Staked, 1=Staked, 2=LockedForWithdraw 3= OnDispute\r\n        uint256 startDate; //stake start date\r\n    }\r\n\r\n    //Internal struct to allow balances to be queried by blocknumber for voting purposes\r\n    struct Checkpoint {\r\n        uint128 fromBlock; // fromBlock is the block number that the value was generated from\r\n        uint128 value; // value is the amount of tokens at a specific block number\r\n    }\r\n\r\n    struct Request {\r\n        string queryString; //id to string api\r\n        string dataSymbol; //short name for api request\r\n        bytes32 queryHash; //hash of api string and granularity e.g. keccak256(abi.encodePacked(_sapi,_granularity))\r\n        uint256[] requestTimestamps; //array of all newValueTimestamps requested\r\n        mapping(bytes32 => uint256) apiUintVars;\r\n        //Each of the variables below is saved in the mapping apiUintVars for each api request\r\n        //e.g. requestDetails[_requestId].apiUintVars[keccak256(\"totalTip\")]\r\n        //These are the variables saved in this mapping:\r\n        // uint keccak256(\"granularity\"); //multiplier for miners\r\n        // uint keccak256(\"requestQPosition\"); //index in requestQ\r\n        // uint keccak256(\"totalTip\");//bonus portion of payout\r\n        mapping(uint256 => uint256) minedBlockNum; //[apiId][minedTimestamp]=>block.number\r\n        //This the time series of finalValues stored by the contract where uint UNIX timestamp is mapped to value\r\n        mapping(uint256 => uint256) finalValues;\r\n        mapping(uint256 => bool) inDispute; //checks if API id is in dispute or finalized.\r\n        mapping(uint256 => address[5]) minersByValue;\r\n        mapping(uint256 => uint256[5]) valuesByTimestamp;\r\n    }\r\n\r\n    struct TellorStorageStruct {\r\n        bytes32 currentChallenge; //current challenge to be solved\r\n        uint256[51] requestQ; //uint50 array of the top50 requests by payment amount\r\n        uint256[] newValueTimestamps; //array of all timestamps requested\r\n        Details[5] currentMiners; //This struct is for organizing the five mined values to find the median\r\n        mapping(bytes32 => address) addressVars;\r\n        //Address fields in the Tellor contract are saved the addressVars mapping\r\n        //e.g. addressVars[keccak256(\"tellorContract\")] = address\r\n        //These are the variables saved in this mapping:\r\n        // address keccak256(\"tellorContract\");//Tellor address\r\n        // address  keccak256(\"_owner\");//Tellor Owner address\r\n        // address  keccak256(\"_deity\");//Tellor Owner that can do things at will\r\n        mapping(bytes32 => uint256) uintVars;\r\n        //uint fields in the Tellor contract are saved the uintVars mapping\r\n        //e.g. uintVars[keccak256(\"decimals\")] = uint\r\n        //These are the variables saved in this mapping:\r\n        // keccak256(\"decimals\");    //18 decimal standard ERC20\r\n        // keccak256(\"disputeFee\");//cost to dispute a mined value\r\n        // keccak256(\"disputeCount\");//totalHistoricalDisputes\r\n        // keccak256(\"total_supply\"); //total_supply of the token in circulation\r\n        // keccak256(\"stakeAmount\");//stakeAmount for miners (we can cut gas if we just hardcode it in...or should it be variable?)\r\n        // keccak256(\"stakerCount\"); //number of parties currently staked\r\n        // keccak256(\"timeOfLastNewValue\"); // time of last challenge solved\r\n        // keccak256(\"difficulty\"); // Difficulty of current block\r\n        // keccak256(\"currentTotalTips\"); //value of highest api/timestamp PayoutPool\r\n        // keccak256(\"currentRequestId\"); //API being mined--updates with the ApiOnQ Id\r\n        // keccak256(\"requestCount\"); // total number of requests through the system\r\n        // keccak256(\"slotProgress\");//Number of miners who have mined this value so far\r\n        // keccak256(\"miningReward\");//Mining Reward in PoWo tokens given to all miners per value\r\n        // keccak256(\"timeTarget\"); //The time between blocks (mined Oracle values)\r\n        //This is a boolean that tells you if a given challenge has been completed by a given miner\r\n        mapping(bytes32 => mapping(address => bool)) minersByChallenge;\r\n        mapping(uint256 => uint256) requestIdByTimestamp; //minedTimestamp to apiId\r\n        mapping(uint256 => uint256) requestIdByRequestQIndex; //link from payoutPoolIndex (position in payout pool array) to apiId\r\n        mapping(uint256 => Dispute) disputesById; //disputeId=> Dispute details\r\n        mapping(address => Checkpoint[]) balances; //balances of a party given blocks\r\n        mapping(address => mapping(address => uint256)) allowed; //allowance for a given party and approver\r\n        mapping(address => StakeInfo) stakerDetails; //mapping from a persons address to their staking info\r\n        mapping(uint256 => Request) requestDetails; //mapping of apiID to details\r\n        mapping(bytes32 => uint256) requestIdByQueryHash; // api bytes32 gets an id = to count of requests array\r\n        mapping(bytes32 => uint256) disputeIdByDisputeHash; //maps a hash to an ID for each dispute\r\n    }\r\n}\r\n",
+  "sourcePath": "C:\\company\\code\\tellorlegacy\\contracts\\oldContracts2\\libraries\\Old2TellorStorage.sol",
   "ast": {
-    "absolutePath": "/home/jgcarv/Dev/Tellor/TellorLegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol",
+    "absolutePath": "/C/company/code/tellorlegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol",
     "exportedSymbols": {
       "Old2TellorStorage": [
         11004
@@ -52,7 +52,7 @@
                 "name": "value",
                 "nodeType": "VariableDeclaration",
                 "scope": 10863,
-                "src": "247:13:20",
+                "src": "257:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -63,7 +63,7 @@
                   "id": 10859,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "247:7:20",
+                  "src": "257:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -78,7 +78,7 @@
                 "name": "miner",
                 "nodeType": "VariableDeclaration",
                 "scope": 10863,
-                "src": "270:13:20",
+                "src": "281:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -89,7 +89,7 @@
                   "id": 10861,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "270:7:20",
+                  "src": "281:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -103,7 +103,7 @@
             "name": "Details",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "222:68:20",
+            "src": "231:71:20",
             "visibility": "public"
           },
           {
@@ -116,7 +116,7 @@
                 "name": "hash",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "321:12:20",
+                "src": "336:12:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -127,7 +127,7 @@
                   "id": 10864,
                   "name": "bytes32",
                   "nodeType": "ElementaryTypeName",
-                  "src": "321:7:20",
+                  "src": "336:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bytes32",
                     "typeString": "bytes32"
@@ -142,7 +142,7 @@
                 "name": "tally",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "409:12:20",
+                "src": "425:12:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -153,7 +153,7 @@
                   "id": 10866,
                   "name": "int256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "409:6:20",
+                  "src": "425:6:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_int256",
                     "typeString": "int256"
@@ -168,7 +168,7 @@
                 "name": "executed",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "478:13:20",
+                "src": "495:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -179,7 +179,7 @@
                   "id": 10868,
                   "name": "bool",
                   "nodeType": "ElementaryTypeName",
-                  "src": "478:4:20",
+                  "src": "495:4:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bool",
                     "typeString": "bool"
@@ -194,7 +194,7 @@
                 "name": "disputeVotePassed",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "526:22:20",
+                "src": "544:22:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -205,7 +205,7 @@
                   "id": 10870,
                   "name": "bool",
                   "nodeType": "ElementaryTypeName",
-                  "src": "526:4:20",
+                  "src": "544:4:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bool",
                     "typeString": "bool"
@@ -220,7 +220,7 @@
                 "name": "isPropFork",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "579:15:20",
+                "src": "598:15:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -231,7 +231,7 @@
                   "id": 10872,
                   "name": "bool",
                   "nodeType": "ElementaryTypeName",
-                  "src": "579:4:20",
+                  "src": "598:4:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bool",
                     "typeString": "bool"
@@ -246,7 +246,7 @@
                 "name": "reportedMiner",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "633:21:20",
+                "src": "653:21:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -257,7 +257,7 @@
                   "id": 10874,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "633:7:20",
+                  "src": "653:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -273,7 +273,7 @@
                 "name": "reportingParty",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "755:22:20",
+                "src": "776:22:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -284,7 +284,7 @@
                   "id": 10876,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "755:7:20",
+                  "src": "776:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -300,7 +300,7 @@
                 "name": "proposedForkAddress",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "890:27:20",
+                "src": "912:27:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -311,7 +311,7 @@
                   "id": 10878,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "890:7:20",
+                  "src": "912:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -327,7 +327,7 @@
                 "name": "disputeUintVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "965:43:20",
+                "src": "988:43:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -340,14 +340,14 @@
                     "id": 10880,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "973:7:20",
+                    "src": "996:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "965:27:20",
+                  "src": "988:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -356,7 +356,7 @@
                     "id": 10881,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "984:7:20",
+                    "src": "1007:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -372,7 +372,7 @@
                 "name": "voted",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "1885:30:20",
+                "src": "1920:30:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -385,14 +385,14 @@
                     "id": 10884,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1893:7:20",
+                    "src": "1928:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "1885:24:20",
+                  "src": "1920:24:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_bool_$",
                     "typeString": "mapping(address => bool)"
@@ -401,7 +401,7 @@
                     "id": 10885,
                     "name": "bool",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1904:4:20",
+                    "src": "1939:4:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bool",
                       "typeString": "bool"
@@ -415,7 +415,7 @@
             "name": "Dispute",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "296:1676:20",
+            "src": "310:1698:20",
             "visibility": "public"
           },
           {
@@ -428,7 +428,7 @@
                 "name": "currentStatus",
                 "nodeType": "VariableDeclaration",
                 "scope": 10893,
-                "src": "2005:21:20",
+                "src": "2044:21:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -439,7 +439,7 @@
                   "id": 10889,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2005:7:20",
+                  "src": "2044:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -454,7 +454,7 @@
                 "name": "startDate",
                 "nodeType": "VariableDeclaration",
                 "scope": 10893,
-                "src": "2095:17:20",
+                "src": "2135:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -465,7 +465,7 @@
                   "id": 10891,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2095:7:20",
+                  "src": "2135:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -478,7 +478,7 @@
             "name": "StakeInfo",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "1978:160:20",
+            "src": "2016:163:20",
             "visibility": "public"
           },
           {
@@ -491,7 +491,7 @@
                 "name": "fromBlock",
                 "nodeType": "VariableDeclaration",
                 "scope": 10898,
-                "src": "2261:17:20",
+                "src": "2306:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -502,7 +502,7 @@
                   "id": 10894,
                   "name": "uint128",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2261:7:20",
+                  "src": "2306:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint128",
                     "typeString": "uint128"
@@ -517,7 +517,7 @@
                 "name": "value",
                 "nodeType": "VariableDeclaration",
                 "scope": 10898,
-                "src": "2355:13:20",
+                "src": "2401:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -528,7 +528,7 @@
                   "id": 10896,
                   "name": "uint128",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2355:7:20",
+                  "src": "2401:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint128",
                     "typeString": "uint128"
@@ -541,7 +541,7 @@
             "name": "Checkpoint",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "2233:202:20",
+            "src": "2277:205:20",
             "visibility": "public"
           },
           {
@@ -554,7 +554,7 @@
                 "name": "queryString",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2466:18:20",
+                "src": "2516:18:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -565,7 +565,7 @@
                   "id": 10899,
                   "name": "string",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2466:6:20",
+                  "src": "2516:6:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_string_storage_ptr",
                     "typeString": "string"
@@ -580,7 +580,7 @@
                 "name": "dataSymbol",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2513:17:20",
+                "src": "2564:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -591,7 +591,7 @@
                   "id": 10901,
                   "name": "string",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2513:6:20",
+                  "src": "2564:6:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_string_storage_ptr",
                     "typeString": "string"
@@ -606,7 +606,7 @@
                 "name": "queryHash",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2569:17:20",
+                "src": "2621:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -617,7 +617,7 @@
                   "id": 10903,
                   "name": "bytes32",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2569:7:20",
+                  "src": "2621:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bytes32",
                     "typeString": "bytes32"
@@ -632,7 +632,7 @@
                 "name": "requestTimestamps",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2686:27:20",
+                "src": "2739:27:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -644,7 +644,7 @@
                     "id": 10905,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "2686:7:20",
+                    "src": "2739:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -653,7 +653,7 @@
                   "id": 10906,
                   "length": null,
                   "nodeType": "ArrayTypeName",
-                  "src": "2686:9:20",
+                  "src": "2739:9:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_uint256_$dyn_storage_ptr",
                     "typeString": "uint256[]"
@@ -668,7 +668,7 @@
                 "name": "apiUintVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2767:39:20",
+                "src": "2821:39:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -681,14 +681,14 @@
                     "id": 10908,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "2775:7:20",
+                    "src": "2829:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "2767:27:20",
+                  "src": "2821:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -697,7 +697,7 @@
                     "id": 10909,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "2786:7:20",
+                    "src": "2840:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -713,7 +713,7 @@
                 "name": "minedBlockNum",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3242:41:20",
+                "src": "3303:41:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -726,14 +726,14 @@
                     "id": 10912,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3250:7:20",
+                    "src": "3311:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3242:27:20",
+                  "src": "3303:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -742,7 +742,7 @@
                     "id": 10913,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3261:7:20",
+                    "src": "3322:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -758,7 +758,7 @@
                 "name": "finalValues",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3447:39:20",
+                "src": "3510:39:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -771,14 +771,14 @@
                     "id": 10916,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3455:7:20",
+                    "src": "3518:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3447:27:20",
+                  "src": "3510:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -787,7 +787,7 @@
                     "id": 10917,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3466:7:20",
+                    "src": "3529:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -803,7 +803,7 @@
                 "name": "inDispute",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3496:34:20",
+                "src": "3560:34:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -816,14 +816,14 @@
                     "id": 10920,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3504:7:20",
+                    "src": "3568:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3496:24:20",
+                  "src": "3560:24:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_bool_$",
                     "typeString": "mapping(uint256 => bool)"
@@ -832,7 +832,7 @@
                     "id": 10921,
                     "name": "bool",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3515:4:20",
+                    "src": "3579:4:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bool",
                       "typeString": "bool"
@@ -848,7 +848,7 @@
                 "name": "minersByValue",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3587:44:20",
+                "src": "3652:44:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -861,14 +861,14 @@
                     "id": 10924,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3595:7:20",
+                    "src": "3660:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3587:30:20",
+                  "src": "3652:30:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_array$_t_address_$5_storage_$",
                     "typeString": "mapping(uint256 => address[5])"
@@ -878,7 +878,7 @@
                       "id": 10925,
                       "name": "address",
                       "nodeType": "ElementaryTypeName",
-                      "src": "3606:7:20",
+                      "src": "3671:7:20",
                       "stateMutability": "nonpayable",
                       "typeDescriptions": {
                         "typeIdentifier": "t_address",
@@ -896,7 +896,7 @@
                       "kind": "number",
                       "lValueRequested": false,
                       "nodeType": "Literal",
-                      "src": "3614:1:20",
+                      "src": "3679:1:20",
                       "subdenomination": null,
                       "typeDescriptions": {
                         "typeIdentifier": "t_rational_5_by_1",
@@ -905,7 +905,7 @@
                       "value": "5"
                     },
                     "nodeType": "ArrayTypeName",
-                    "src": "3606:10:20",
+                    "src": "3671:10:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_address_$5_storage_ptr",
                       "typeString": "address[5]"
@@ -921,7 +921,7 @@
                 "name": "valuesByTimestamp",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3641:48:20",
+                "src": "3707:48:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -934,14 +934,14 @@
                     "id": 10930,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3649:7:20",
+                    "src": "3715:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3641:30:20",
+                  "src": "3707:30:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_array$_t_uint256_$5_storage_$",
                     "typeString": "mapping(uint256 => uint256[5])"
@@ -951,7 +951,7 @@
                       "id": 10931,
                       "name": "uint256",
                       "nodeType": "ElementaryTypeName",
-                      "src": "3660:7:20",
+                      "src": "3726:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_uint256",
                         "typeString": "uint256"
@@ -968,7 +968,7 @@
                       "kind": "number",
                       "lValueRequested": false,
                       "nodeType": "Literal",
-                      "src": "3668:1:20",
+                      "src": "3734:1:20",
                       "subdenomination": null,
                       "typeDescriptions": {
                         "typeIdentifier": "t_rational_5_by_1",
@@ -977,7 +977,7 @@
                       "value": "5"
                     },
                     "nodeType": "ArrayTypeName",
-                    "src": "3660:10:20",
+                    "src": "3726:10:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_uint256_$5_storage_ptr",
                       "typeString": "uint256[5]"
@@ -991,7 +991,7 @@
             "name": "Request",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "2441:1255:20",
+            "src": "2490:1273:20",
             "visibility": "public"
           },
           {
@@ -1004,7 +1004,7 @@
                 "name": "currentChallenge",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3739:24:20",
+                "src": "3809:24:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1015,7 +1015,7 @@
                   "id": 10937,
                   "name": "bytes32",
                   "nodeType": "ElementaryTypeName",
-                  "src": "3739:7:20",
+                  "src": "3809:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bytes32",
                     "typeString": "bytes32"
@@ -1030,7 +1030,7 @@
                 "name": "requestQ",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3806:20:20",
+                "src": "3877:20:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1042,7 +1042,7 @@
                     "id": 10939,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3806:7:20",
+                    "src": "3877:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1059,7 +1059,7 @@
                     "kind": "number",
                     "lValueRequested": false,
                     "nodeType": "Literal",
-                    "src": "3814:2:20",
+                    "src": "3885:2:20",
                     "subdenomination": null,
                     "typeDescriptions": {
                       "typeIdentifier": "t_rational_51_by_1",
@@ -1068,7 +1068,7 @@
                     "value": "51"
                   },
                   "nodeType": "ArrayTypeName",
-                  "src": "3806:11:20",
+                  "src": "3877:11:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_uint256_$51_storage_ptr",
                     "typeString": "uint256[51]"
@@ -1083,7 +1083,7 @@
                 "name": "newValueTimestamps",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3891:28:20",
+                "src": "3963:28:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1095,7 +1095,7 @@
                     "id": 10943,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3891:7:20",
+                    "src": "3963:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1104,7 +1104,7 @@
                   "id": 10944,
                   "length": null,
                   "nodeType": "ArrayTypeName",
-                  "src": "3891:9:20",
+                  "src": "3963:9:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_uint256_$dyn_storage_ptr",
                     "typeString": "uint256[]"
@@ -1119,7 +1119,7 @@
                 "name": "currentMiners",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3965:24:20",
+                "src": "4038:24:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1133,7 +1133,7 @@
                     "name": "Details",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10863,
-                    "src": "3965:7:20",
+                    "src": "4038:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_Details_$10863_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Details"
@@ -1150,7 +1150,7 @@
                     "kind": "number",
                     "lValueRequested": false,
                     "nodeType": "Literal",
-                    "src": "3973:1:20",
+                    "src": "4046:1:20",
                     "subdenomination": null,
                     "typeDescriptions": {
                       "typeIdentifier": "t_rational_5_by_1",
@@ -1159,7 +1159,7 @@
                     "value": "5"
                   },
                   "nodeType": "ArrayTypeName",
-                  "src": "3965:10:20",
+                  "src": "4038:10:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_struct$_Details_$10863_storage_$5_storage_ptr",
                     "typeString": "struct Old2TellorStorage.Details[5]"
@@ -1174,7 +1174,7 @@
                 "name": "addressVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "4072:39:20",
+                "src": "4146:39:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1187,14 +1187,14 @@
                     "id": 10950,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4080:7:20",
+                    "src": "4154:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "4072:27:20",
+                  "src": "4146:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_address_$",
                     "typeString": "mapping(bytes32 => address)"
@@ -1203,7 +1203,7 @@
                     "id": 10951,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4091:7:20",
+                    "src": "4165:7:20",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1220,7 +1220,7 @@
                 "name": "uintVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "4535:36:20",
+                "src": "4616:36:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1233,14 +1233,14 @@
                     "id": 10954,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4543:7:20",
+                    "src": "4624:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "4535:27:20",
+                  "src": "4616:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -1249,7 +1249,7 @@
                     "id": 10955,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4554:7:20",
+                    "src": "4635:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1265,7 +1265,7 @@
                 "name": "minersByChallenge",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6024:62:20",
+                "src": "6124:62:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1278,14 +1278,14 @@
                     "id": 10958,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6032:7:20",
+                    "src": "6132:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6024:44:20",
+                  "src": "6124:44:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_mapping$_t_address_$_t_bool_$_$",
                     "typeString": "mapping(bytes32 => mapping(address => bool))"
@@ -1296,14 +1296,14 @@
                       "id": 10959,
                       "name": "address",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6051:7:20",
+                      "src": "6151:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_address",
                         "typeString": "address"
                       }
                     },
                     "nodeType": "Mapping",
-                    "src": "6043:24:20",
+                    "src": "6143:24:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_mapping$_t_address_$_t_bool_$",
                       "typeString": "mapping(address => bool)"
@@ -1312,7 +1312,7 @@
                       "id": 10960,
                       "name": "bool",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6062:4:20",
+                      "src": "6162:4:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_bool",
                         "typeString": "bool"
@@ -1329,7 +1329,7 @@
                 "name": "requestIdByTimestamp",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6096:48:20",
+                "src": "6197:48:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1342,14 +1342,14 @@
                     "id": 10964,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6104:7:20",
+                    "src": "6205:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6096:27:20",
+                  "src": "6197:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -1358,7 +1358,7 @@
                     "id": 10965,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6115:7:20",
+                    "src": "6216:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1374,7 +1374,7 @@
                 "name": "requestIdByRequestQIndex",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6180:52:20",
+                "src": "6282:52:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1387,14 +1387,14 @@
                     "id": 10968,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6188:7:20",
+                    "src": "6290:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6180:27:20",
+                  "src": "6282:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -1403,7 +1403,7 @@
                     "id": 10969,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6199:7:20",
+                    "src": "6301:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1419,7 +1419,7 @@
                 "name": "disputesById",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6311:40:20",
+                "src": "6414:40:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1432,14 +1432,14 @@
                     "id": 10972,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6319:7:20",
+                    "src": "6422:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6311:27:20",
+                  "src": "6414:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_struct$_Dispute_$10888_storage_$",
                     "typeString": "mapping(uint256 => struct Old2TellorStorage.Dispute)"
@@ -1450,7 +1450,7 @@
                     "name": "Dispute",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10888,
-                    "src": "6330:7:20",
+                    "src": "6433:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_Dispute_$10888_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Dispute"
@@ -1466,7 +1466,7 @@
                 "name": "balances",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6391:41:20",
+                "src": "6495:41:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1479,14 +1479,14 @@
                     "id": 10976,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6399:7:20",
+                    "src": "6503:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6391:32:20",
+                  "src": "6495:32:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_array$_t_struct$_Checkpoint_$10898_storage_$dyn_storage_$",
                     "typeString": "mapping(address => struct Old2TellorStorage.Checkpoint[])"
@@ -1498,7 +1498,7 @@
                       "name": "Checkpoint",
                       "nodeType": "UserDefinedTypeName",
                       "referencedDeclaration": 10898,
-                      "src": "6410:10:20",
+                      "src": "6514:10:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_struct$_Checkpoint_$10898_storage_ptr",
                         "typeString": "struct Old2TellorStorage.Checkpoint"
@@ -1507,7 +1507,7 @@
                     "id": 10978,
                     "length": null,
                     "nodeType": "ArrayTypeName",
-                    "src": "6410:12:20",
+                    "src": "6514:12:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_struct$_Checkpoint_$10898_storage_$dyn_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Checkpoint[]"
@@ -1523,7 +1523,7 @@
                 "name": "allowed",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6477:55:20",
+                "src": "6582:55:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1536,14 +1536,14 @@
                     "id": 10981,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6485:7:20",
+                    "src": "6590:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6477:47:20",
+                  "src": "6582:47:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_mapping$_t_address_$_t_uint256_$_$",
                     "typeString": "mapping(address => mapping(address => uint256))"
@@ -1554,14 +1554,14 @@
                       "id": 10982,
                       "name": "address",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6504:7:20",
+                      "src": "6609:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_address",
                         "typeString": "address"
                       }
                     },
                     "nodeType": "Mapping",
-                    "src": "6496:27:20",
+                    "src": "6601:27:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_mapping$_t_address_$_t_uint256_$",
                       "typeString": "mapping(address => uint256)"
@@ -1570,7 +1570,7 @@
                       "id": 10983,
                       "name": "uint256",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6515:7:20",
+                      "src": "6620:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_uint256",
                         "typeString": "uint256"
@@ -1587,7 +1587,7 @@
                 "name": "stakerDetails",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6585:43:20",
+                "src": "6691:43:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1600,14 +1600,14 @@
                     "id": 10987,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6593:7:20",
+                    "src": "6699:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6585:29:20",
+                  "src": "6691:29:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_StakeInfo_$10893_storage_$",
                     "typeString": "mapping(address => struct Old2TellorStorage.StakeInfo)"
@@ -1618,7 +1618,7 @@
                     "name": "StakeInfo",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10893,
-                    "src": "6604:9:20",
+                    "src": "6710:9:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_StakeInfo_$10893_storage_ptr",
                       "typeString": "struct Old2TellorStorage.StakeInfo"
@@ -1634,7 +1634,7 @@
                 "name": "requestDetails",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6693:42:20",
+                "src": "6800:42:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1647,14 +1647,14 @@
                     "id": 10991,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6701:7:20",
+                    "src": "6808:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6693:27:20",
+                  "src": "6800:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_struct$_Request_$10936_storage_$",
                     "typeString": "mapping(uint256 => struct Old2TellorStorage.Request)"
@@ -1665,7 +1665,7 @@
                     "name": "Request",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10936,
-                    "src": "6712:7:20",
+                    "src": "6819:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_Request_$10936_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Request"
@@ -1681,7 +1681,7 @@
                 "name": "requestIdByQueryHash",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6775:48:20",
+                "src": "6883:48:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1694,14 +1694,14 @@
                     "id": 10995,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6783:7:20",
+                    "src": "6891:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6775:27:20",
+                  "src": "6883:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -1710,7 +1710,7 @@
                     "id": 10996,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6794:7:20",
+                    "src": "6902:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1726,7 +1726,7 @@
                 "name": "disputeIdByDisputeHash",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6888:50:20",
+                "src": "6997:50:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1739,14 +1739,14 @@
                     "id": 10999,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6896:7:20",
+                    "src": "7005:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6888:27:20",
+                  "src": "6997:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -1755,7 +1755,7 @@
                     "id": 11000,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6907:7:20",
+                    "src": "7016:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1769,18 +1769,18 @@
             "name": "TellorStorageStruct",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "3702:3283:20",
+            "src": "3771:3324:20",
             "visibility": "public"
           }
         ],
         "scope": 11005,
-        "src": "132:6855:20"
+        "src": "139:6959:20"
       }
     ],
-    "src": "0:6988:20"
+    "src": "0:7100:20"
   },
   "legacyAST": {
-    "absolutePath": "/home/jgcarv/Dev/Tellor/TellorLegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol",
+    "absolutePath": "/C/company/code/tellorlegacy/contracts/oldContracts2/libraries/Old2TellorStorage.sol",
     "exportedSymbols": {
       "Old2TellorStorage": [
         11004
@@ -1823,7 +1823,7 @@
                 "name": "value",
                 "nodeType": "VariableDeclaration",
                 "scope": 10863,
-                "src": "247:13:20",
+                "src": "257:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1834,7 +1834,7 @@
                   "id": 10859,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "247:7:20",
+                  "src": "257:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -1849,7 +1849,7 @@
                 "name": "miner",
                 "nodeType": "VariableDeclaration",
                 "scope": 10863,
-                "src": "270:13:20",
+                "src": "281:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1860,7 +1860,7 @@
                   "id": 10861,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "270:7:20",
+                  "src": "281:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -1874,7 +1874,7 @@
             "name": "Details",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "222:68:20",
+            "src": "231:71:20",
             "visibility": "public"
           },
           {
@@ -1887,7 +1887,7 @@
                 "name": "hash",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "321:12:20",
+                "src": "336:12:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1898,7 +1898,7 @@
                   "id": 10864,
                   "name": "bytes32",
                   "nodeType": "ElementaryTypeName",
-                  "src": "321:7:20",
+                  "src": "336:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bytes32",
                     "typeString": "bytes32"
@@ -1913,7 +1913,7 @@
                 "name": "tally",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "409:12:20",
+                "src": "425:12:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1924,7 +1924,7 @@
                   "id": 10866,
                   "name": "int256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "409:6:20",
+                  "src": "425:6:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_int256",
                     "typeString": "int256"
@@ -1939,7 +1939,7 @@
                 "name": "executed",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "478:13:20",
+                "src": "495:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1950,7 +1950,7 @@
                   "id": 10868,
                   "name": "bool",
                   "nodeType": "ElementaryTypeName",
-                  "src": "478:4:20",
+                  "src": "495:4:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bool",
                     "typeString": "bool"
@@ -1965,7 +1965,7 @@
                 "name": "disputeVotePassed",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "526:22:20",
+                "src": "544:22:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -1976,7 +1976,7 @@
                   "id": 10870,
                   "name": "bool",
                   "nodeType": "ElementaryTypeName",
-                  "src": "526:4:20",
+                  "src": "544:4:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bool",
                     "typeString": "bool"
@@ -1991,7 +1991,7 @@
                 "name": "isPropFork",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "579:15:20",
+                "src": "598:15:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2002,7 +2002,7 @@
                   "id": 10872,
                   "name": "bool",
                   "nodeType": "ElementaryTypeName",
-                  "src": "579:4:20",
+                  "src": "598:4:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bool",
                     "typeString": "bool"
@@ -2017,7 +2017,7 @@
                 "name": "reportedMiner",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "633:21:20",
+                "src": "653:21:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2028,7 +2028,7 @@
                   "id": 10874,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "633:7:20",
+                  "src": "653:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -2044,7 +2044,7 @@
                 "name": "reportingParty",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "755:22:20",
+                "src": "776:22:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2055,7 +2055,7 @@
                   "id": 10876,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "755:7:20",
+                  "src": "776:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -2071,7 +2071,7 @@
                 "name": "proposedForkAddress",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "890:27:20",
+                "src": "912:27:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2082,7 +2082,7 @@
                   "id": 10878,
                   "name": "address",
                   "nodeType": "ElementaryTypeName",
-                  "src": "890:7:20",
+                  "src": "912:7:20",
                   "stateMutability": "nonpayable",
                   "typeDescriptions": {
                     "typeIdentifier": "t_address",
@@ -2098,7 +2098,7 @@
                 "name": "disputeUintVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "965:43:20",
+                "src": "988:43:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2111,14 +2111,14 @@
                     "id": 10880,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "973:7:20",
+                    "src": "996:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "965:27:20",
+                  "src": "988:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -2127,7 +2127,7 @@
                     "id": 10881,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "984:7:20",
+                    "src": "1007:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2143,7 +2143,7 @@
                 "name": "voted",
                 "nodeType": "VariableDeclaration",
                 "scope": 10888,
-                "src": "1885:30:20",
+                "src": "1920:30:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2156,14 +2156,14 @@
                     "id": 10884,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1893:7:20",
+                    "src": "1928:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "1885:24:20",
+                  "src": "1920:24:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_bool_$",
                     "typeString": "mapping(address => bool)"
@@ -2172,7 +2172,7 @@
                     "id": 10885,
                     "name": "bool",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1904:4:20",
+                    "src": "1939:4:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bool",
                       "typeString": "bool"
@@ -2186,7 +2186,7 @@
             "name": "Dispute",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "296:1676:20",
+            "src": "310:1698:20",
             "visibility": "public"
           },
           {
@@ -2199,7 +2199,7 @@
                 "name": "currentStatus",
                 "nodeType": "VariableDeclaration",
                 "scope": 10893,
-                "src": "2005:21:20",
+                "src": "2044:21:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2210,7 +2210,7 @@
                   "id": 10889,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2005:7:20",
+                  "src": "2044:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -2225,7 +2225,7 @@
                 "name": "startDate",
                 "nodeType": "VariableDeclaration",
                 "scope": 10893,
-                "src": "2095:17:20",
+                "src": "2135:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2236,7 +2236,7 @@
                   "id": 10891,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2095:7:20",
+                  "src": "2135:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -2249,7 +2249,7 @@
             "name": "StakeInfo",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "1978:160:20",
+            "src": "2016:163:20",
             "visibility": "public"
           },
           {
@@ -2262,7 +2262,7 @@
                 "name": "fromBlock",
                 "nodeType": "VariableDeclaration",
                 "scope": 10898,
-                "src": "2261:17:20",
+                "src": "2306:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2273,7 +2273,7 @@
                   "id": 10894,
                   "name": "uint128",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2261:7:20",
+                  "src": "2306:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint128",
                     "typeString": "uint128"
@@ -2288,7 +2288,7 @@
                 "name": "value",
                 "nodeType": "VariableDeclaration",
                 "scope": 10898,
-                "src": "2355:13:20",
+                "src": "2401:13:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2299,7 +2299,7 @@
                   "id": 10896,
                   "name": "uint128",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2355:7:20",
+                  "src": "2401:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint128",
                     "typeString": "uint128"
@@ -2312,7 +2312,7 @@
             "name": "Checkpoint",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "2233:202:20",
+            "src": "2277:205:20",
             "visibility": "public"
           },
           {
@@ -2325,7 +2325,7 @@
                 "name": "queryString",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2466:18:20",
+                "src": "2516:18:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2336,7 +2336,7 @@
                   "id": 10899,
                   "name": "string",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2466:6:20",
+                  "src": "2516:6:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_string_storage_ptr",
                     "typeString": "string"
@@ -2351,7 +2351,7 @@
                 "name": "dataSymbol",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2513:17:20",
+                "src": "2564:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2362,7 +2362,7 @@
                   "id": 10901,
                   "name": "string",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2513:6:20",
+                  "src": "2564:6:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_string_storage_ptr",
                     "typeString": "string"
@@ -2377,7 +2377,7 @@
                 "name": "queryHash",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2569:17:20",
+                "src": "2621:17:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2388,7 +2388,7 @@
                   "id": 10903,
                   "name": "bytes32",
                   "nodeType": "ElementaryTypeName",
-                  "src": "2569:7:20",
+                  "src": "2621:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bytes32",
                     "typeString": "bytes32"
@@ -2403,7 +2403,7 @@
                 "name": "requestTimestamps",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2686:27:20",
+                "src": "2739:27:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2415,7 +2415,7 @@
                     "id": 10905,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "2686:7:20",
+                    "src": "2739:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2424,7 +2424,7 @@
                   "id": 10906,
                   "length": null,
                   "nodeType": "ArrayTypeName",
-                  "src": "2686:9:20",
+                  "src": "2739:9:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_uint256_$dyn_storage_ptr",
                     "typeString": "uint256[]"
@@ -2439,7 +2439,7 @@
                 "name": "apiUintVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "2767:39:20",
+                "src": "2821:39:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2452,14 +2452,14 @@
                     "id": 10908,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "2775:7:20",
+                    "src": "2829:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "2767:27:20",
+                  "src": "2821:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -2468,7 +2468,7 @@
                     "id": 10909,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "2786:7:20",
+                    "src": "2840:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2484,7 +2484,7 @@
                 "name": "minedBlockNum",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3242:41:20",
+                "src": "3303:41:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2497,14 +2497,14 @@
                     "id": 10912,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3250:7:20",
+                    "src": "3311:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3242:27:20",
+                  "src": "3303:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -2513,7 +2513,7 @@
                     "id": 10913,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3261:7:20",
+                    "src": "3322:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2529,7 +2529,7 @@
                 "name": "finalValues",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3447:39:20",
+                "src": "3510:39:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2542,14 +2542,14 @@
                     "id": 10916,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3455:7:20",
+                    "src": "3518:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3447:27:20",
+                  "src": "3510:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -2558,7 +2558,7 @@
                     "id": 10917,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3466:7:20",
+                    "src": "3529:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2574,7 +2574,7 @@
                 "name": "inDispute",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3496:34:20",
+                "src": "3560:34:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2587,14 +2587,14 @@
                     "id": 10920,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3504:7:20",
+                    "src": "3568:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3496:24:20",
+                  "src": "3560:24:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_bool_$",
                     "typeString": "mapping(uint256 => bool)"
@@ -2603,7 +2603,7 @@
                     "id": 10921,
                     "name": "bool",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3515:4:20",
+                    "src": "3579:4:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bool",
                       "typeString": "bool"
@@ -2619,7 +2619,7 @@
                 "name": "minersByValue",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3587:44:20",
+                "src": "3652:44:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2632,14 +2632,14 @@
                     "id": 10924,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3595:7:20",
+                    "src": "3660:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3587:30:20",
+                  "src": "3652:30:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_array$_t_address_$5_storage_$",
                     "typeString": "mapping(uint256 => address[5])"
@@ -2649,7 +2649,7 @@
                       "id": 10925,
                       "name": "address",
                       "nodeType": "ElementaryTypeName",
-                      "src": "3606:7:20",
+                      "src": "3671:7:20",
                       "stateMutability": "nonpayable",
                       "typeDescriptions": {
                         "typeIdentifier": "t_address",
@@ -2667,7 +2667,7 @@
                       "kind": "number",
                       "lValueRequested": false,
                       "nodeType": "Literal",
-                      "src": "3614:1:20",
+                      "src": "3679:1:20",
                       "subdenomination": null,
                       "typeDescriptions": {
                         "typeIdentifier": "t_rational_5_by_1",
@@ -2676,7 +2676,7 @@
                       "value": "5"
                     },
                     "nodeType": "ArrayTypeName",
-                    "src": "3606:10:20",
+                    "src": "3671:10:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_address_$5_storage_ptr",
                       "typeString": "address[5]"
@@ -2692,7 +2692,7 @@
                 "name": "valuesByTimestamp",
                 "nodeType": "VariableDeclaration",
                 "scope": 10936,
-                "src": "3641:48:20",
+                "src": "3707:48:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2705,14 +2705,14 @@
                     "id": 10930,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3649:7:20",
+                    "src": "3715:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "3641:30:20",
+                  "src": "3707:30:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_array$_t_uint256_$5_storage_$",
                     "typeString": "mapping(uint256 => uint256[5])"
@@ -2722,7 +2722,7 @@
                       "id": 10931,
                       "name": "uint256",
                       "nodeType": "ElementaryTypeName",
-                      "src": "3660:7:20",
+                      "src": "3726:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_uint256",
                         "typeString": "uint256"
@@ -2739,7 +2739,7 @@
                       "kind": "number",
                       "lValueRequested": false,
                       "nodeType": "Literal",
-                      "src": "3668:1:20",
+                      "src": "3734:1:20",
                       "subdenomination": null,
                       "typeDescriptions": {
                         "typeIdentifier": "t_rational_5_by_1",
@@ -2748,7 +2748,7 @@
                       "value": "5"
                     },
                     "nodeType": "ArrayTypeName",
-                    "src": "3660:10:20",
+                    "src": "3726:10:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_uint256_$5_storage_ptr",
                       "typeString": "uint256[5]"
@@ -2762,7 +2762,7 @@
             "name": "Request",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "2441:1255:20",
+            "src": "2490:1273:20",
             "visibility": "public"
           },
           {
@@ -2775,7 +2775,7 @@
                 "name": "currentChallenge",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3739:24:20",
+                "src": "3809:24:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2786,7 +2786,7 @@
                   "id": 10937,
                   "name": "bytes32",
                   "nodeType": "ElementaryTypeName",
-                  "src": "3739:7:20",
+                  "src": "3809:7:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_bytes32",
                     "typeString": "bytes32"
@@ -2801,7 +2801,7 @@
                 "name": "requestQ",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3806:20:20",
+                "src": "3877:20:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2813,7 +2813,7 @@
                     "id": 10939,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3806:7:20",
+                    "src": "3877:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2830,7 +2830,7 @@
                     "kind": "number",
                     "lValueRequested": false,
                     "nodeType": "Literal",
-                    "src": "3814:2:20",
+                    "src": "3885:2:20",
                     "subdenomination": null,
                     "typeDescriptions": {
                       "typeIdentifier": "t_rational_51_by_1",
@@ -2839,7 +2839,7 @@
                     "value": "51"
                   },
                   "nodeType": "ArrayTypeName",
-                  "src": "3806:11:20",
+                  "src": "3877:11:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_uint256_$51_storage_ptr",
                     "typeString": "uint256[51]"
@@ -2854,7 +2854,7 @@
                 "name": "newValueTimestamps",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3891:28:20",
+                "src": "3963:28:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2866,7 +2866,7 @@
                     "id": 10943,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "3891:7:20",
+                    "src": "3963:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -2875,7 +2875,7 @@
                   "id": 10944,
                   "length": null,
                   "nodeType": "ArrayTypeName",
-                  "src": "3891:9:20",
+                  "src": "3963:9:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_uint256_$dyn_storage_ptr",
                     "typeString": "uint256[]"
@@ -2890,7 +2890,7 @@
                 "name": "currentMiners",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "3965:24:20",
+                "src": "4038:24:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2904,7 +2904,7 @@
                     "name": "Details",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10863,
-                    "src": "3965:7:20",
+                    "src": "4038:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_Details_$10863_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Details"
@@ -2921,7 +2921,7 @@
                     "kind": "number",
                     "lValueRequested": false,
                     "nodeType": "Literal",
-                    "src": "3973:1:20",
+                    "src": "4046:1:20",
                     "subdenomination": null,
                     "typeDescriptions": {
                       "typeIdentifier": "t_rational_5_by_1",
@@ -2930,7 +2930,7 @@
                     "value": "5"
                   },
                   "nodeType": "ArrayTypeName",
-                  "src": "3965:10:20",
+                  "src": "4038:10:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_array$_t_struct$_Details_$10863_storage_$5_storage_ptr",
                     "typeString": "struct Old2TellorStorage.Details[5]"
@@ -2945,7 +2945,7 @@
                 "name": "addressVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "4072:39:20",
+                "src": "4146:39:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -2958,14 +2958,14 @@
                     "id": 10950,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4080:7:20",
+                    "src": "4154:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "4072:27:20",
+                  "src": "4146:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_address_$",
                     "typeString": "mapping(bytes32 => address)"
@@ -2974,7 +2974,7 @@
                     "id": 10951,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4091:7:20",
+                    "src": "4165:7:20",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -2991,7 +2991,7 @@
                 "name": "uintVars",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "4535:36:20",
+                "src": "4616:36:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3004,14 +3004,14 @@
                     "id": 10954,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4543:7:20",
+                    "src": "4624:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "4535:27:20",
+                  "src": "4616:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -3020,7 +3020,7 @@
                     "id": 10955,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "4554:7:20",
+                    "src": "4635:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -3036,7 +3036,7 @@
                 "name": "minersByChallenge",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6024:62:20",
+                "src": "6124:62:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3049,14 +3049,14 @@
                     "id": 10958,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6032:7:20",
+                    "src": "6132:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6024:44:20",
+                  "src": "6124:44:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_mapping$_t_address_$_t_bool_$_$",
                     "typeString": "mapping(bytes32 => mapping(address => bool))"
@@ -3067,14 +3067,14 @@
                       "id": 10959,
                       "name": "address",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6051:7:20",
+                      "src": "6151:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_address",
                         "typeString": "address"
                       }
                     },
                     "nodeType": "Mapping",
-                    "src": "6043:24:20",
+                    "src": "6143:24:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_mapping$_t_address_$_t_bool_$",
                       "typeString": "mapping(address => bool)"
@@ -3083,7 +3083,7 @@
                       "id": 10960,
                       "name": "bool",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6062:4:20",
+                      "src": "6162:4:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_bool",
                         "typeString": "bool"
@@ -3100,7 +3100,7 @@
                 "name": "requestIdByTimestamp",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6096:48:20",
+                "src": "6197:48:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3113,14 +3113,14 @@
                     "id": 10964,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6104:7:20",
+                    "src": "6205:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6096:27:20",
+                  "src": "6197:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -3129,7 +3129,7 @@
                     "id": 10965,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6115:7:20",
+                    "src": "6216:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -3145,7 +3145,7 @@
                 "name": "requestIdByRequestQIndex",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6180:52:20",
+                "src": "6282:52:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3158,14 +3158,14 @@
                     "id": 10968,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6188:7:20",
+                    "src": "6290:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6180:27:20",
+                  "src": "6282:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_uint256_$",
                     "typeString": "mapping(uint256 => uint256)"
@@ -3174,7 +3174,7 @@
                     "id": 10969,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6199:7:20",
+                    "src": "6301:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -3190,7 +3190,7 @@
                 "name": "disputesById",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6311:40:20",
+                "src": "6414:40:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3203,14 +3203,14 @@
                     "id": 10972,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6319:7:20",
+                    "src": "6422:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6311:27:20",
+                  "src": "6414:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_struct$_Dispute_$10888_storage_$",
                     "typeString": "mapping(uint256 => struct Old2TellorStorage.Dispute)"
@@ -3221,7 +3221,7 @@
                     "name": "Dispute",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10888,
-                    "src": "6330:7:20",
+                    "src": "6433:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_Dispute_$10888_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Dispute"
@@ -3237,7 +3237,7 @@
                 "name": "balances",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6391:41:20",
+                "src": "6495:41:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3250,14 +3250,14 @@
                     "id": 10976,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6399:7:20",
+                    "src": "6503:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6391:32:20",
+                  "src": "6495:32:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_array$_t_struct$_Checkpoint_$10898_storage_$dyn_storage_$",
                     "typeString": "mapping(address => struct Old2TellorStorage.Checkpoint[])"
@@ -3269,7 +3269,7 @@
                       "name": "Checkpoint",
                       "nodeType": "UserDefinedTypeName",
                       "referencedDeclaration": 10898,
-                      "src": "6410:10:20",
+                      "src": "6514:10:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_struct$_Checkpoint_$10898_storage_ptr",
                         "typeString": "struct Old2TellorStorage.Checkpoint"
@@ -3278,7 +3278,7 @@
                     "id": 10978,
                     "length": null,
                     "nodeType": "ArrayTypeName",
-                    "src": "6410:12:20",
+                    "src": "6514:12:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_array$_t_struct$_Checkpoint_$10898_storage_$dyn_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Checkpoint[]"
@@ -3294,7 +3294,7 @@
                 "name": "allowed",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6477:55:20",
+                "src": "6582:55:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3307,14 +3307,14 @@
                     "id": 10981,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6485:7:20",
+                    "src": "6590:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6477:47:20",
+                  "src": "6582:47:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_mapping$_t_address_$_t_uint256_$_$",
                     "typeString": "mapping(address => mapping(address => uint256))"
@@ -3325,14 +3325,14 @@
                       "id": 10982,
                       "name": "address",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6504:7:20",
+                      "src": "6609:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_address",
                         "typeString": "address"
                       }
                     },
                     "nodeType": "Mapping",
-                    "src": "6496:27:20",
+                    "src": "6601:27:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_mapping$_t_address_$_t_uint256_$",
                       "typeString": "mapping(address => uint256)"
@@ -3341,7 +3341,7 @@
                       "id": 10983,
                       "name": "uint256",
                       "nodeType": "ElementaryTypeName",
-                      "src": "6515:7:20",
+                      "src": "6620:7:20",
                       "typeDescriptions": {
                         "typeIdentifier": "t_uint256",
                         "typeString": "uint256"
@@ -3358,7 +3358,7 @@
                 "name": "stakerDetails",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6585:43:20",
+                "src": "6691:43:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3371,14 +3371,14 @@
                     "id": 10987,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6593:7:20",
+                    "src": "6699:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
                       "typeString": "address"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6585:29:20",
+                  "src": "6691:29:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_address_$_t_struct$_StakeInfo_$10893_storage_$",
                     "typeString": "mapping(address => struct Old2TellorStorage.StakeInfo)"
@@ -3389,7 +3389,7 @@
                     "name": "StakeInfo",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10893,
-                    "src": "6604:9:20",
+                    "src": "6710:9:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_StakeInfo_$10893_storage_ptr",
                       "typeString": "struct Old2TellorStorage.StakeInfo"
@@ -3405,7 +3405,7 @@
                 "name": "requestDetails",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6693:42:20",
+                "src": "6800:42:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3418,14 +3418,14 @@
                     "id": 10991,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6701:7:20",
+                    "src": "6808:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6693:27:20",
+                  "src": "6800:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_uint256_$_t_struct$_Request_$10936_storage_$",
                     "typeString": "mapping(uint256 => struct Old2TellorStorage.Request)"
@@ -3436,7 +3436,7 @@
                     "name": "Request",
                     "nodeType": "UserDefinedTypeName",
                     "referencedDeclaration": 10936,
-                    "src": "6712:7:20",
+                    "src": "6819:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_struct$_Request_$10936_storage_ptr",
                       "typeString": "struct Old2TellorStorage.Request"
@@ -3452,7 +3452,7 @@
                 "name": "requestIdByQueryHash",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6775:48:20",
+                "src": "6883:48:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3465,14 +3465,14 @@
                     "id": 10995,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6783:7:20",
+                    "src": "6891:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6775:27:20",
+                  "src": "6883:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -3481,7 +3481,7 @@
                     "id": 10996,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6794:7:20",
+                    "src": "6902:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -3497,7 +3497,7 @@
                 "name": "disputeIdByDisputeHash",
                 "nodeType": "VariableDeclaration",
                 "scope": 11003,
-                "src": "6888:50:20",
+                "src": "6997:50:20",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -3510,14 +3510,14 @@
                     "id": 10999,
                     "name": "bytes32",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6896:7:20",
+                    "src": "7005:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bytes32",
                       "typeString": "bytes32"
                     }
                   },
                   "nodeType": "Mapping",
-                  "src": "6888:27:20",
+                  "src": "6997:27:20",
                   "typeDescriptions": {
                     "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
                     "typeString": "mapping(bytes32 => uint256)"
@@ -3526,7 +3526,7 @@
                     "id": 11000,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "6907:7:20",
+                    "src": "7016:7:20",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -3540,23 +3540,23 @@
             "name": "TellorStorageStruct",
             "nodeType": "StructDefinition",
             "scope": 11004,
-            "src": "3702:3283:20",
+            "src": "3771:3324:20",
             "visibility": "public"
           }
         ],
         "scope": 11005,
-        "src": "132:6855:20"
+        "src": "139:6959:20"
       }
     ],
-    "src": "0:6988:20"
+    "src": "0:7100:20"
   },
   "compiler": {
     "name": "solc",
     "version": "0.5.16+commit.9c3226ce.Emscripten.clang"
   },
   "networks": {},
-  "schemaVersion": "3.2.3",
-  "updatedAt": "2020-10-01T13:38:06.715Z",
+  "schemaVersion": "3.0.23",
+  "updatedAt": "2020-10-04T01:22:40.143Z",
   "devdoc": {
     "details": "Contains all the variables/structs used by Tellor",
     "methods": {},
