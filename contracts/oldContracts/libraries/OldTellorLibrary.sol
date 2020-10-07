@@ -17,14 +17,14 @@ import "./OldTellorGettersLibrary.sol";
 library OldTellorLibrary{
     using OldSafeMath for uint256;
     
-    event TipAdded(address indexed _sender,uint indexed _requestId, uint _tip, uint _totalTips);
-    event DataRequested(address indexed _sender, string _query,string _querySymbol,uint _granularity, uint indexed _requestId, uint _totalTips);//Emits upon someone adding value to a pool; msg.sender, amount added, and timestamp incentivized to be mined
-    event NewChallenge(bytes32 _currentChallenge,uint indexed _currentRequestId,uint _difficulty,uint _multiplier,string _query,uint _totalTips); //emits when a new challenge is created (either on mined block or when a new request is pushed forward on waiting system)
-    event NewRequestOnDeck(uint indexed _requestId, string _query, bytes32 _onDeckQueryHash, uint _onDeckTotalTips); //emits when a the payout of another request is higher after adding to the payoutPool or submitting a request
-    event NewValue(uint indexed _requestId, uint _time, uint _value,uint _totalTips,bytes32 _currentChallenge);//Emits upon a successful Mine, indicates the blocktime at point of the mine and the value mined
-    event NonceSubmitted(address indexed _miner, string _nonce, uint indexed _requestId, uint _value,bytes32 _currentChallenge);//Emits upon each mine (5 total) and shows the miner, nonce, and value submitted
-    event OwnershipTransferred(address indexed _previousOwner, address indexed _newOwner);
-    event OwnershipProposed(address indexed _previousOwner, address indexed _newOwner);
+    event OldTipAdded(address indexed _sender,uint indexed _requestId, uint _tip, uint _totalTips);
+    event OldDataRequested(address indexed _sender, string _query,string _querySymbol,uint _granularity, uint indexed _requestId, uint _totalTips);//Emits upon someone adding value to a pool; msg.sender, amount added, and timestamp incentivized to be mined
+    event OldNewChallenge(bytes32 _currentChallenge,uint indexed _currentRequestId,uint _difficulty,uint _multiplier,string _query,uint _totalTips); //emits when a new challenge is created (either on mined block or when a new request is pushed forward on waiting system)
+    event OldNewRequestOnDeck(uint indexed _requestId, string _query, bytes32 _onDeckQueryHash, uint _onDeckTotalTips); //emits when a the payout of another request is higher after adding to the payoutPool or submitting a request
+    event OldNewValue(uint indexed _requestId, uint _time, uint _value,uint _totalTips,bytes32 _currentChallenge);//Emits upon a successful Mine, indicates the blocktime at point of the mine and the value mined
+    event OldNonceSubmitted(address indexed _miner, string _nonce, uint indexed _requestId, uint _value,bytes32 _currentChallenge);//Emits upon each mine (5 total) and shows the miner, nonce, and value submitted
+    event OldOwnershipTransferred(address indexed _previousOwner, address indexed _newOwner);
+    event OldOwnershipProposed(address indexed _previousOwner, address indexed _newOwner);
 
     /*Functions*/
     
@@ -51,7 +51,7 @@ library OldTellorLibrary{
 
         //Update the information for the request that should be mined next based on the tip submitted
         updateOnDeck(self,_requestId,_tip);
-        emit TipAdded(msg.sender,_requestId,_tip,self.requestDetails[_requestId].apiUintVars[keccak256("totalTip")]);
+        emit OldTipAdded(msg.sender,_requestId,_tip,self.requestDetails[_requestId].apiUintVars[keccak256("totalTip")]);
     }
 
     /**
@@ -98,7 +98,7 @@ library OldTellorLibrary{
                 OldTellorTransfer.doTransfer(self, msg.sender,address(this),_tip);
             }
             updateOnDeck(self,_requestId,_tip);
-            emit DataRequested(msg.sender,self.requestDetails[_requestId].queryString,self.requestDetails[_requestId].dataSymbol,_granularity,_requestId,_tip);
+            emit OldDataRequested(msg.sender,self.requestDetails[_requestId].queryString,self.requestDetails[_requestId].dataSymbol,_granularity,_requestId,_tip);
         }
         //Add tip to existing request id since this is not the first time the api and granularity have been requested 
         else{
@@ -118,7 +118,7 @@ library OldTellorLibrary{
             // If the difference between the timeTarget and how long it takes to solve the challenge this updates the challenge 
             //difficulty up or donw by the difference between the target time and how long it took to solve the prevous challenge
             //otherwise it sets it to 1
-            int _newDiff = int(self.uintVars[keccak256("difficulty")]) + int(self.uintVars[keccak256("difficulty")]) * (int(self.uintVars[keccak256("timeTarget")]) - int(now - self.uintVars[keccak256("timeOfLastNewValue")]))/100;
+            int _newDiff = int(self.uintVars[keccak256("difficulty")]) + int(self.uintVars[keccak256("difficulty")]) * (int(self.uintVars[keccak256("timeTarget")]) - int(now - self.uintVars[keccak256("timeOfLastOldNewValue")]))/100;
             if(_newDiff <= 0){
                 self.uintVars[keccak256("difficulty")] = 1;
             }
@@ -127,8 +127,8 @@ library OldTellorLibrary{
             }
             
             //Sets time of value submission rounded to 1 minute
-            uint _timeOfLastNewValue =  now - (now % 1 minutes);
-            self.uintVars[keccak256("timeOfLastNewValue")] = _timeOfLastNewValue;
+            uint _timeOfLastOldNewValue =  now - (now % 1 minutes);
+            self.uintVars[keccak256("timeOfLastOldNewValue")] = _timeOfLastOldNewValue;
             
             //The sorting algorithm that sorts the values of the first five values that come in
             OldTellorStorage.Details[5] memory a = self.currentMiners;
@@ -152,7 +152,7 @@ library OldTellorLibrary{
             for (i = 0;i <5;i++){
                 OldTellorTransfer.doTransfer(self,address(this),a[i].miner,5e18 + self.uintVars[keccak256("currentTotalTips")]/5);
             }
-            emit NewValue(_requestId,_timeOfLastNewValue,a[2].value,self.uintVars[keccak256("currentTotalTips")] - self.uintVars[keccak256("currentTotalTips")] % 5,self.currentChallenge);
+            emit OldNewValue(_requestId,_timeOfLastOldNewValue,a[2].value,self.uintVars[keccak256("currentTotalTips")] - self.uintVars[keccak256("currentTotalTips")] % 5,self.currentChallenge);
             
             //update the total supply
             self.uintVars[keccak256("total_supply")] += 275e17;
@@ -160,18 +160,18 @@ library OldTellorLibrary{
             //pay the dev-share
             OldTellorTransfer.doTransfer(self, address(this),self.addressVars[keccak256("_owner")],25e17);//The ten there is the devshare
             //Save the official(finalValue), timestamp of it, 5 miners and their submitted values for it, and its block number
-            _request.finalValues[_timeOfLastNewValue] = a[2].value;
-            _request.requestTimestamps.push(_timeOfLastNewValue);
+            _request.finalValues[_timeOfLastOldNewValue] = a[2].value;
+            _request.requestTimestamps.push(_timeOfLastOldNewValue);
             //these are miners by timestamp
-            _request.minersByValue[_timeOfLastNewValue] = [a[0].miner,a[1].miner,a[2].miner,a[3].miner,a[4].miner];
-            _request.valuesByTimestamp[_timeOfLastNewValue] = [a[0].value,a[1].value,a[2].value,a[3].value,a[4].value];
-            _request.minedBlockNum[_timeOfLastNewValue] = block.number;
+            _request.minersByValue[_timeOfLastOldNewValue] = [a[0].miner,a[1].miner,a[2].miner,a[3].miner,a[4].miner];
+            _request.valuesByTimestamp[_timeOfLastOldNewValue] = [a[0].value,a[1].value,a[2].value,a[3].value,a[4].value];
+            _request.minedBlockNum[_timeOfLastOldNewValue] = block.number;
              //map the timeOfLastValue to the requestId that was just mined
                 
                 
-            self.requestIdByTimestamp[_timeOfLastNewValue] = _requestId;
-            //add timeOfLastValue to the newValueTimestamps array
-            self.newValueTimestamps.push(_timeOfLastNewValue);
+            self.requestIdByTimestamp[_timeOfLastOldNewValue] = _requestId;
+            //add timeOfLastValue to the OldnewValueTimestamps array
+            self.newValueTimestamps.push(_timeOfLastOldNewValue);
             //re-start the count for the slot progress to zero before the new request mining starts
             self.uintVars[keccak256("slotProgress")] = 0;
             uint _topId = OldTellorGettersLibrary.getTopRequestID(self);
@@ -198,8 +198,8 @@ library OldTellorLibrary{
                 uint newRequestId = OldTellorGettersLibrary.getTopRequestID(self);
                 //Issue the the next challenge
                 self.currentChallenge = keccak256(abi.encodePacked(_nonce,self.currentChallenge, blockhash(block.number - 1))); // Save hash for next proof
-                emit NewChallenge(self.currentChallenge,_topId,self.uintVars[keccak256("difficulty")],self.requestDetails[_topId].apiUintVars[keccak256("granularity")],self.requestDetails[_topId].queryString,self.uintVars[keccak256("currentTotalTips")]);
-                emit NewRequestOnDeck(newRequestId,self.requestDetails[newRequestId].queryString,self.requestDetails[newRequestId].queryHash, self.requestDetails[newRequestId].apiUintVars[keccak256("totalTip")]);
+                emit OldNewChallenge(self.currentChallenge,_topId,self.uintVars[keccak256("difficulty")],self.requestDetails[_topId].apiUintVars[keccak256("granularity")],self.requestDetails[_topId].queryString,self.uintVars[keccak256("currentTotalTips")]);
+                emit OldNewRequestOnDeck(newRequestId,self.requestDetails[newRequestId].queryString,self.requestDetails[newRequestId].queryHash, self.requestDetails[newRequestId].apiUintVars[keccak256("totalTip")]);
             }
             else{
                 self.uintVars[keccak256("currentTotalTips")] = 0;
@@ -237,7 +237,7 @@ library OldTellorLibrary{
         //Update the miner status to true once they submit a value so they don't submit more than once
         self.minersByChallenge[self.currentChallenge][msg.sender] = true;
 
-        emit NonceSubmitted(msg.sender,_nonce,_requestId,_value,self.currentChallenge);
+        emit OldNonceSubmitted(msg.sender,_nonce,_requestId,_value,self.currentChallenge);
         
         //If 5 values have been received, adjust the difficulty otherwise sort the values until 5 are received
         if(self.uintVars[keccak256("slotProgress")] == 5) { 
@@ -254,7 +254,7 @@ library OldTellorLibrary{
     */
     function proposeOwnership(OldTellorStorage.TellorStorageStruct storage self,address payable _pendingOwner) internal {
         require(msg.sender == self.addressVars[keccak256("_owner")]);
-        emit OwnershipProposed(self.addressVars[keccak256("_owner")], _pendingOwner);
+        emit OldOwnershipProposed(self.addressVars[keccak256("_owner")], _pendingOwner);
         self.addressVars[keccak256("pending_owner")] = _pendingOwner;
     }
 
@@ -264,7 +264,7 @@ library OldTellorLibrary{
     */
     function claimOwnership(OldTellorStorage.TellorStorageStruct storage self) internal {
         require(msg.sender == self.addressVars[keccak256("pending_owner")]);
-        emit OwnershipTransferred(self.addressVars[keccak256("_owner")], self.addressVars[keccak256("pending_owner")]);
+        emit OldOwnershipTransferred(self.addressVars[keccak256("_owner")], self.addressVars[keccak256("pending_owner")]);
         self.addressVars[keccak256("_owner")] = self.addressVars[keccak256("pending_owner")];
     }
 
@@ -292,7 +292,7 @@ library OldTellorLibrary{
             self.uintVars[keccak256("currentRequestId")] = _requestId;
             self.uintVars[keccak256("currentTotalTips")] = _payout;
             self.currentChallenge = keccak256(abi.encodePacked(_payout, self.currentChallenge, blockhash(block.number - 1))); // Save hash for next proof
-            emit NewChallenge(self.currentChallenge,self.uintVars[keccak256("currentRequestId")],self.uintVars[keccak256("difficulty")],self.requestDetails[self.uintVars[keccak256("currentRequestId")]].apiUintVars[keccak256("granularity")],self.requestDetails[self.uintVars[keccak256("currentRequestId")]].queryString,self.uintVars[keccak256("currentTotalTips")]);
+            emit OldNewChallenge(self.currentChallenge,self.uintVars[keccak256("currentRequestId")],self.uintVars[keccak256("difficulty")],self.requestDetails[self.uintVars[keccak256("currentRequestId")]].apiUintVars[keccak256("granularity")],self.requestDetails[self.uintVars[keccak256("currentRequestId")]].queryString,self.uintVars[keccak256("currentTotalTips")]);
         }
         else{
             //If there is no OnDeckRequestId
@@ -300,7 +300,7 @@ library OldTellorLibrary{
             //is being currently mined)
             if (_payout > self.requestDetails[onDeckRequestId].apiUintVars[keccak256("totalTip")]  || (onDeckRequestId == 0)) {
                     //let everyone know the next on queue has been replaced
-                    emit NewRequestOnDeck(_requestId,_request.queryString,_request.queryHash ,_payout);
+                    emit OldNewRequestOnDeck(_requestId,_request.queryString,_request.queryHash ,_payout);
             }
             
             //if the request is not part of the requestQ[51] array
@@ -356,7 +356,7 @@ library OldTellorLibrary{
         //Update the miner status to true once they submit a value so they don't submit more than once
         self.minersByChallenge[self.currentChallenge][msg.sender] = true;
 
-        emit NonceSubmitted(msg.sender,_nonce,_requestId,_value,self.currentChallenge);
+        emit OldNonceSubmitted(msg.sender,_nonce,_requestId,_value,self.currentChallenge);
         
         //If 5 values have been received, adjust the difficulty otherwise sort the values until 5 are received
         if(self.uintVars[keccak256("slotProgress")] == 5) { 

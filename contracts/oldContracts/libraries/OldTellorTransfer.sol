@@ -12,8 +12,8 @@ import "./OldTellorStorage.sol";
 library OldTellorTransfer {
     using OldSafeMath for uint256;
 
-    event Approval(address indexed _owner, address indexed _spender, uint256 _value);//ERC20 Approval event
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);//ERC20 Transfer Event
+    event OldApproval(address indexed _owner, address indexed _spender, uint256 _value);//ERC20 OldApproval event
+    event OldTransfer(address indexed _from, address indexed _to, uint256 _value);//ERC20 Transfer Event
 
     /*Functions*/
     
@@ -55,7 +55,7 @@ library OldTellorTransfer {
         require(allowedToTrade(self,msg.sender,_amount));
         require(_spender != address(0));
         self.allowed[msg.sender][_spender] = _amount;
-        emit Approval(msg.sender, _spender, _amount);
+        emit OldApproval(msg.sender, _spender, _amount);
         return true;
     }
 
@@ -85,7 +85,7 @@ library OldTellorTransfer {
         previousBalance = balanceOfAt(self,_to, block.number);
         require(previousBalance + _amount >= previousBalance); // Check for overflow
         updateBalanceAtNow(self.balances[_to], previousBalance + _amount);
-        emit Transfer(_from, _to, _amount);
+        emit OldTransfer(_from, _to, _amount);
     }
 
 

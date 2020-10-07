@@ -14,10 +14,10 @@ library OldTellorDispute {
     using OldSafeMath for uint256;
     using OldSafeMath for int256;
 
-    event NewDispute(uint indexed _disputeId, uint indexed _requestId, uint _timestamp, address _miner);//emitted when a new dispute is initialized
-    event Voted(uint indexed _disputeID, bool _position, address indexed _voter);//emitted when a new vote happens
-    event DisputeVoteTallied(uint indexed _disputeID, int _result,address indexed _reportedMiner,address _reportingParty, bool _active);//emitted upon dispute tally
-    event NewTellorAddress(address _newTellor); //emmited when a proposed fork is voted true
+    event OldNewDispute(uint indexed _disputeId, uint indexed _requestId, uint _timestamp, address _miner);//emitted when a new dispute is initialized
+    event OldVoted(uint indexed _disputeID, bool _position, address indexed _voter);//emitted when a new vote happens
+    event OldDisputeVoteTallied(uint indexed _disputeID, int _result,address indexed _reportedMiner,address _reportingParty, bool _active);//emitted upon dispute tally
+    event OldNewTellorAddress(address _newTellor); //emmited when a proposed fork is Oldvoted true
 
     /*Functions*/
     
@@ -82,7 +82,7 @@ library OldTellorDispute {
             self.requestDetails[_requestId].inDispute[_timestamp] = true;
         }
         self.stakerDetails[_miner].currentStatus = 3;
-        emit NewDispute(disputeId,_requestId,_timestamp,_miner);
+        emit OldNewDispute(disputeId,_requestId,_timestamp,_miner);
     }
 
 
@@ -97,7 +97,7 @@ library OldTellorDispute {
         //Get the voteWeight or the balance of the user at the time/blockNumber the disupte began
         uint voteWeight = OldTellorTransfer.balanceOfAt(self,msg.sender,disp.disputeUintVars[keccak256("blockNumber")]);
         
-        //Require that the msg.sender has not voted
+        //Require that the msg.sender has not Oldvoted
         require(disp.voted[msg.sender] != true);
         
         //Requre that the user had a balance >0 at time/blockNumber the disupte began
@@ -123,8 +123,8 @@ library OldTellorDispute {
             disp.tally = disp.tally.sub(int(voteWeight));
         }
         
-        //Let the network know the user has voted on the dispute and their casted vote
-        emit Voted(_disputeId,_supportsDispute,msg.sender);
+        //Let the network know the user has Oldvoted on the dispute and their casted vote
+        emit OldVoted(_disputeId,_supportsDispute,msg.sender);
     }
 
 
@@ -190,22 +190,22 @@ library OldTellorDispute {
                 require(disp.disputeUintVars[keccak256("quorum")] >  (self.uintVars[keccak256("total_supply")] * 20 / 100));
                 self.addressVars[keccak256("tellorContract")] = disp.proposedForkAddress;
                 disp.disputeVotePassed = true;
-                emit NewTellorAddress(disp.proposedForkAddress);
+                emit OldNewTellorAddress(disp.proposedForkAddress);
             }
         }
         
         //update the dispute status to executed
         disp.executed = true;
-        emit DisputeVoteTallied(_disputeId,disp.tally,disp.reportedMiner,disp.reportingParty,disp.disputeVotePassed);
+        emit OldDisputeVoteTallied(_disputeId,disp.tally,disp.reportedMiner,disp.reportingParty,disp.disputeVotePassed);
     }
 
 
     /**
     * @dev Allows for a fork to be proposed
-    * @param _propNewTellorAddress address for new proposed Tellor
+    * @param _propOldNewTellorAddress address for new proposed Tellor
     */
-    function proposeFork(OldTellorStorage.TellorStorageStruct storage self, address _propNewTellorAddress) public {
-        bytes32 _hash = keccak256(abi.encodePacked(_propNewTellorAddress));
+    function proposeFork(OldTellorStorage.TellorStorageStruct storage self, address _propOldNewTellorAddress) public {
+        bytes32 _hash = keccak256(abi.encodePacked(_propOldNewTellorAddress));
         require(self.disputeIdByDisputeHash[_hash] == 0);
         OldTellorTransfer.doTransfer(self, msg.sender,address(this), self.uintVars[keccak256("disputeFee")]);//This is the fork fee
         self.uintVars[keccak256("disputeCount")]++;
@@ -216,7 +216,7 @@ library OldTellorDispute {
             isPropFork: true,
             reportedMiner: msg.sender, 
             reportingParty: msg.sender, 
-            proposedForkAddress: _propNewTellorAddress,
+            proposedForkAddress: _propOldNewTellorAddress,
             executed: false,
             disputeVotePassed: false,
             tally: 0

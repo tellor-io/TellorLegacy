@@ -11,9 +11,9 @@ import "./OldTellorDispute.sol";
 */
 
 library OldTellorStake {
-    event NewStake(address indexed _sender);//Emits upon new staker
-    event StakeWithdrawn(address indexed _sender);//Emits when a staker is now no longer staked
-    event StakeWithdrawRequested(address indexed _sender);//Emits when a staker begins the 7 day withdraw period
+    event OldNewStake(address indexed _sender);//Emits upon new staker
+    event OldStakeWithdrawn(address indexed _sender);//Emits when a staker is now no longer staked
+    event OldStakeWithdrawRequested(address indexed _sender);//Emits when a staker begins the 7 day withdraw period
 
     /*Functions*/
     
@@ -39,7 +39,7 @@ library OldTellorStake {
             //Miner balance is set at 1000e18 at the block that this function is ran
             OldTellorTransfer.updateBalanceAtNow(self.balances[_initalMiners[i]],1000e18);
 
-            newStake(self, _initalMiners[i]);
+            OldnewStake(self, _initalMiners[i]);
         }
 
         //update the total suppply
@@ -75,7 +75,7 @@ library OldTellorStake {
         //Reduce the staker count
         self.uintVars[keccak256("stakerCount")] -= 1;
         OldTellorDispute.updateDisputeFee(self);
-        emit StakeWithdrawRequested(msg.sender);
+        emit OldStakeWithdrawRequested(msg.sender);
     }
 
 
@@ -89,7 +89,7 @@ library OldTellorStake {
         require(now - (now % 86400) - stakes.startDate >= 7 days);
         require(stakes.currentStatus == 2);
         stakes.currentStatus = 0;
-        emit StakeWithdrawn(msg.sender);
+        emit OldStakeWithdrawn(msg.sender);
     }
 
 
@@ -97,7 +97,7 @@ library OldTellorStake {
     * @dev This function allows miners to deposit their stake.
     */
     function depositStake(OldTellorStorage.TellorStorageStruct storage self) public {
-      newStake(self, msg.sender);
+      OldnewStake(self, msg.sender);
       //self adjusting disputeFee
       OldTellorDispute.updateDisputeFee(self);
     }
@@ -107,7 +107,7 @@ library OldTellorStake {
     * The function updates their status/state and status start date so they are locked it so they can't withdraw
     * and updates the number of stakers in the system.
     */
-    function newStake(OldTellorStorage.TellorStorageStruct storage self, address staker) internal {
+    function OldnewStake(OldTellorStorage.TellorStorageStruct storage self, address staker) internal {
         require(OldTellorTransfer.balanceOf(self,staker) >= self.uintVars[keccak256("stakeAmount")]);
         //Ensure they can only stake if they are not currrently staked or if their stake time frame has ended
         //and they are currently locked for witdhraw
@@ -118,6 +118,6 @@ library OldTellorStake {
             //this resets their stake start date to today
             startDate: now - (now % 86400)
         });
-        emit NewStake(staker);
+        emit OldNewStake(staker);
     }
 }

@@ -10,7 +10,7 @@ import "./OldTellorGetters.sol";
 */
 contract OldTellorMaster is OldTellorGetters{
     
-    event NewTellorAddress(address _newTellor);
+    event OldNewTellorAddress(address _newTellor);
 
     /**
     * @dev The constructor sets the original `tellorStorageOwner` of the contract to the sender
@@ -22,7 +22,7 @@ contract OldTellorMaster is OldTellorGetters{
         tellor.addressVars[keccak256("_owner")] = msg.sender;
         tellor.addressVars[keccak256("_deity")] = msg.sender;
         tellor.addressVars[keccak256("tellorContract")]= _tellorContract;
-        emit NewTellorAddress(_tellorContract);
+        emit OldNewTellorAddress(_tellorContract);
     }
     
 

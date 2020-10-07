@@ -12,7 +12,7 @@ import "./OldUtilities.sol";
 library OldTellorGettersLibrary{
     using OldSafeMath for uint256;
 
-    event NewTellorAddress(address _newTellor); //emmited when a proposed fork is voted true
+    event OldNewTellorAddress(address _newTellor); //emmited when a proposed fork is voted true
 
     /*Functions*/
 
@@ -36,7 +36,7 @@ library OldTellorGettersLibrary{
     function changeTellorContract(OldTellorStorage.TellorStorageStruct storage self,address _tellorContract) internal{
         require(self.addressVars[keccak256("_deity")] == msg.sender);
         self.addressVars[keccak256("tellorContract")]= _tellorContract;
-        emit NewTellorAddress(_tellorContract);
+        emit OldNewTellorAddress(_tellorContract);
     }
 
 
