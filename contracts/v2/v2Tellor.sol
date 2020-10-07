@@ -14,7 +14,7 @@ import "./libraries/v2TellorLibrary.sol";
  * The logic for this contract is in TellorLibrary.sol, TellorDispute.sol, TellorStake.sol,
  * and TellorTransfer.sol
  */
-contract Tellor {
+contract v2Tellor {
     using v2SafeMath for uint256;
 
     using v2TellorDispute for v2TellorStorage.TellorStorageStruct;
