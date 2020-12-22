@@ -1,6 +1,6 @@
 {
   "name": "tellorlegacy",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "Smart Contracts for the past versions of Tellor",
   "main": "truffle-config.js",
   "directories": {
